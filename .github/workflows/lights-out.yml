@@ -1,6 +1,8 @@
 # lights-out on this repository (a probe: docs/adr/0057 §7 of
 # nicolaguglielmi/lights-out). The root Action and the two standalone
 # Actions on every pull request, at v0.3.0, the published gates image.
+# The two standalone Actions come from their own repositories,
+# nicolaguglielmi/test-proof and nicolaguglielmi/test-integrity.
 # Each runs in a job of its own, on a runner that has never seen the
 # image, so each time includes the first pull: from the step's start to
 # its check run.
@@ -45,7 +47,7 @@ jobs:
       - id: t0
         run: echo "t=$(date +%s)" >> "$GITHUB_OUTPUT"
       - id: run
-        uses: ./.github/actions/test-proof
+        uses: nicolaguglielmi/test-proof@v0.3.0
       - if: always()
         name: The verdict and its time, first pull included
         env:
@@ -66,7 +68,7 @@ jobs:
       - id: t0
         run: echo "t=$(date +%s)" >> "$GITHUB_OUTPUT"
       - id: run
-        uses: ./.github/actions/test-integrity
+        uses: nicolaguglielmi/test-integrity@v0.3.0
       - if: always()
         name: The verdict and its time, first pull included
         env:
