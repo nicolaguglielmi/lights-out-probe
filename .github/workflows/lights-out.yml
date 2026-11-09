@@ -1,10 +1,9 @@
 # lights-out on this repository (a probe: docs/adr/0057 §7 of
 # nicolaguglielmi/lights-out). The root Action and the two standalone
-# Actions on every pull request, each timed from its step's start to its
-# check run. Until lights-out v0.3.0 is published, the gates image is
-# built here from lights-out at the commit under test, and that build is
-# timed apart; after it, LIGHTS_OUT_REF becomes v0.3.0, the build step
-# goes, and the first pull is inside each Action's time.
+# Actions on every pull request, at v0.3.0, the published gates image.
+# Each runs in a job of its own, on a runner that has never seen the
+# image, so each time includes the first pull: from the step's start to
+# its check run.
 name: lights-out
 
 on:
@@ -22,53 +21,59 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - name: The gates image, from lights-out at 0a0d073677950070bd4b77c913fc23549922296d (not published yet)
-        run: |
-          set -eu
-          s=$(date +%s)
-          git clone -q https://github.com/nicolaguglielmi/lights-out.git "$RUNNER_TEMP/lo"
-          git -C "$RUNNER_TEMP/lo" checkout -q 0a0d073677950070bd4b77c913fc23549922296d
-          PACKAGE_FLAVOUR=gates sh "$RUNNER_TEMP/lo/package/build.sh" docker localhost/lights-out-gates:probe
-          b=$(docker image inspect --format '{{.Size}}' localhost/lights-out-gates:probe)
-          echo "image build: $(( $(date +%s) - s ))s, $((b / 1000000)) MB unpacked" | tee -a "$GITHUB_STEP_SUMMARY"
       - id: t0
         run: echo "t=$(date +%s)" >> "$GITHUB_OUTPUT"
-      - id: all
-        uses: nicolaguglielmi/lights-out@0a0d073677950070bd4b77c913fc23549922296d
-        with:
-          image: localhost/lights-out-gates:probe
-      - id: t1
-        if: always()
-        run: echo "t=$(date +%s)" >> "$GITHUB_OUTPUT"
-      - id: proof
-        if: always()
-        uses: ./.github/actions/test-proof
-        with:
-          image: localhost/lights-out-gates:probe
-      - id: t2
-        if: always()
-        run: echo "t=$(date +%s)" >> "$GITHUB_OUTPUT"
-      - id: integrity
-        if: always()
-        uses: ./.github/actions/test-integrity
-        with:
-          image: localhost/lights-out-gates:probe
+      - id: run
+        uses: nicolaguglielmi/lights-out@v0.3.0
       - if: always()
-        name: The three verdicts and their times
+        name: The verdict and its time, first pull included
         env:
           T0: ${{ steps.t0.outputs.t }}
-          T1: ${{ steps.t1.outputs.t }}
-          T2: ${{ steps.t2.outputs.t }}
-          ALL: ${{ steps.all.outputs.line }}
-          PROOF: ${{ steps.proof.outputs.line }}
-          INTEGRITY: ${{ steps.integrity.outputs.line }}
-          ALL_URL: ${{ steps.all.outputs.check_url }}
-          PROOF_URL: ${{ steps.proof.outputs.check_url }}
-          INTEGRITY_URL: ${{ steps.integrity.outputs.check_url }}
+          LINE: ${{ steps.run.outputs.line }}
+          URL: ${{ steps.run.outputs.check_url }}
         run: |
-          t3=$(date +%s)
-          { echo '### lights-out on a repository of its own'; echo '```'
-            echo "gates          $((T1 - T0))s  $ALL  $ALL_URL"
-            echo "test-proof     $((T2 - T1))s  $PROOF  $PROOF_URL"
-            echo "test-integrity $((t3 - T2))s  $INTEGRITY  $INTEGRITY_URL"
+          { echo '### gates, first pull included'; echo '```'
+            echo "gates $(( $(date +%s) - T0 ))s  $LINE  $URL"
+            echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+
+  test-proof:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: t0
+        run: echo "t=$(date +%s)" >> "$GITHUB_OUTPUT"
+      - id: run
+        uses: ./.github/actions/test-proof
+      - if: always()
+        name: The verdict and its time, first pull included
+        env:
+          T0: ${{ steps.t0.outputs.t }}
+          LINE: ${{ steps.run.outputs.line }}
+          URL: ${{ steps.run.outputs.check_url }}
+        run: |
+          { echo '### test-proof, first pull included'; echo '```'
+            echo "test-proof $(( $(date +%s) - T0 ))s  $LINE  $URL"
+            echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
+
+  test-integrity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: t0
+        run: echo "t=$(date +%s)" >> "$GITHUB_OUTPUT"
+      - id: run
+        uses: ./.github/actions/test-integrity
+      - if: always()
+        name: The verdict and its time, first pull included
+        env:
+          T0: ${{ steps.t0.outputs.t }}
+          LINE: ${{ steps.run.outputs.line }}
+          URL: ${{ steps.run.outputs.check_url }}
+        run: |
+          { echo '### test-integrity, first pull included'; echo '```'
+            echo "test-integrity $(( $(date +%s) - T0 ))s  $LINE  $URL"
             echo '```'; } | tee -a "$GITHUB_STEP_SUMMARY"
